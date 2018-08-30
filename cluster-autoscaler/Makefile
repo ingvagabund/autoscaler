@@ -53,3 +53,5 @@ test-in-docker: clean docker-builder
 
 .PHONY: all deps build test-unit clean format execute-release dev-release docker-builder build-in-docker release generate
 
+vendor-cluster-api:
+	./vendor-cluster-api.sh
