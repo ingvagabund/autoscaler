@@ -23,6 +23,7 @@ import (
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider"
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/aws"
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/azure"
+	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/clusterapi"
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/gce"
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/gke"
 	"k8s.io/autoscaler/cluster-autoscaler/cloudprovider/kubemark"
@@ -76,6 +77,8 @@ func NewCloudProvider(opts config.AutoscalingOptions) cloudprovider.CloudProvide
 		return buildAzure(opts, do, rl)
 	case kubemark.ProviderName:
 		return buildKubemark(opts, do, rl)
+	case clusterapi.ProviderName:
+		return buildClusterapi(opts, do, rl)
 	case "":
 		// Ideally this would be an error, but several unit tests of the
 		// StaticAutoscaler depend on this behaviour.
@@ -216,6 +219,30 @@ func buildKubemark(opts config.AutoscalingOptions, do cloudprovider.NodeGroupDis
 	provider, err := kubemark.BuildKubemarkCloudProvider(kubemarkController, do.NodeGroupSpecs, rl)
 	if err != nil {
 		glog.Fatalf("Failed to create Kubemark cloud provider: %v", err)
+	}
+	return provider
+}
+
+func buildClusterapi(opts config.AutoscalingOptions, do cloudprovider.NodeGroupDiscoveryOptions, rl *cloudprovider.ResourceLimiter) cloudprovider.CloudProvider {
+	var config io.ReadCloser
+	if opts.CloudConfig != "" {
+		glog.Info("Creating Cluster API Manager using cloud-config file: %v", opts.CloudConfig)
+		var err error
+		config, err := os.Open(opts.CloudConfig)
+		if err != nil {
+			glog.Fatalf("Couldn't open cloud provider configuration %s: %#v", opts.CloudConfig, err)
+		}
+		defer config.Close()
+	} else {
+		glog.Info("Creating Cluster API Manager with default configuration.")
+	}
+	manager, err := clusterapi.CreateManager(config, do)
+	if err != nil {
+		glog.Fatalf("Failed to create Azure Manager: %v", err)
+	}
+	provider, err := clusterapi.BuildCloudProvider(manager, rl)
+	if err != nil {
+		glog.Fatalf("Failed to create Azure cloud provider: %v", err)
 	}
 	return provider
 }
